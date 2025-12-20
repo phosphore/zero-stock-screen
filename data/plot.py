@@ -65,9 +65,18 @@ class Plot:
         candle_width = 9
         space = 1
 
-        num_of_candles = width // (candle_width + space)
-        leftover_space = width % (candle_width + space)
-        windows_per_candle = len(data) // num_of_candles
+        if not data:
+            return
+
+        candle_slot = candle_width + space
+        num_of_candles = width // candle_slot
+        if num_of_candles <= 0:
+            return
+
+        num_of_candles = min(num_of_candles, len(data))
+        total_width = (num_of_candles * candle_slot) - space
+        leftover_space = max(0, width - total_width)
+        windows_per_candle = max(1, len(data) // num_of_candles)
         data_offset = len(data) % num_of_candles
         candle_data = []
         for i in range(data_offset, len(data), windows_per_candle):
@@ -78,9 +87,13 @@ class Plot:
             low = min([i[2] for i in window])
             candle_data.append((open, high, low, close))
 
+        if not candle_data:
+            return
+
         all_values = [item for sublist in candle_data for item in sublist]
         max_price = max(all_values)
         min_price = min(all_values)
+        price_range = max_price - min_price
 
         normalised_data = []
         for line in candle_data:
@@ -88,7 +101,10 @@ class Plot:
             normalised_data.append(normalised_line)
             for i in range(len(line)):
                 price = line[i]
-                normalised_line.append((price - min_price) / (max_price - min_price))
+                if price_range == 0:
+                    normalised_line.append(0.5)
+                else:
+                    normalised_line.append((price - min_price) / price_range)
 
         def y_flip(y):
             return height - (y * height) + position[1]
