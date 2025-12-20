@@ -38,6 +38,58 @@ function parse_time_param($value): ?int
     return $timestamp;
 }
 
+function resolve_api_key(): ?string
+{
+    if (!empty($_GET['token'])) {
+        return trim((string)$_GET['token']);
+    }
+
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (!empty($headers['X-Massive-Token'])) {
+            return trim((string)$headers['X-Massive-Token']);
+        }
+        if (!empty($headers['Authorization'])) {
+            $auth = trim((string)$headers['Authorization']);
+            if (stripos($auth, 'Bearer ') === 0) {
+                return trim(substr($auth, 7));
+            }
+        }
+    }
+
+    $env_key = getenv('MASSIVE_API_KEY');
+    if ($env_key !== false && $env_key !== '') {
+        return trim((string)$env_key);
+    }
+
+    return null;
+}
+
+function resolve_granularity(): int
+{
+    $granularity = isset($_GET['granularity']) ? (int)$_GET['granularity'] : 900;
+    return max(1, $granularity);
+}
+
+function map_granularity(int $granularity): array
+{
+    if ($granularity % 86400 === 0) {
+        return [$granularity / 86400, 'day'];
+    }
+    if ($granularity % 3600 === 0) {
+        return [$granularity / 3600, 'hour'];
+    }
+    if ($granularity % 60 === 0) {
+        return [$granularity / 60, 'minute'];
+    }
+
+    return [$granularity, 'second'];
+}
+
+$api_key = resolve_api_key();
+$granularity = resolve_granularity();
+[$multiplier, $timespan] = map_granularity($granularity);
+
 $from = parse_time_param($start);
 $to = parse_time_param($end);
 if (($start !== null || $end !== null) && ($from === null || $to === null)) {
@@ -46,50 +98,79 @@ if (($start !== null || $end !== null) && ($from === null || $to === null)) {
     exit;
 }
 
-$query_string = $_GET['query'] ?? '';
-$query_string = $query_string !== '' ? $query_string : 'tt:' . strtolower($ticker);
-$limit = isset($_GET['n']) ? (int)$_GET['n'] : 200;
-$limit = max(1, min($limit, 200));
-$last = $_GET['last'] ?? null;
-
-$query = [
-    'q' => $query_string,
-    'n' => $limit,
-];
-if ($last !== null && $last !== '') {
-    $query['last'] = $last;
+if ($from === null || $to === null) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing start/end time.']);
+    exit;
 }
 
-$url = 'https://api.tickertick.com/feed?' . http_build_query($query);
-$response = @file_get_contents($url);
+$from_ms = $from * 1000;
+$to_ms = $to * 1000;
+$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
+if ($limit !== null) {
+    $limit = max(1, min($limit, 50000));
+}
+
+$path = sprintf(
+    'https://api.massive.com/v2/aggs/ticker/%s/range/%d/%s/%d/%d',
+    rawurlencode($ticker),
+    $multiplier,
+    $timespan,
+    $from_ms,
+    $to_ms
+);
+
+$query = [
+    'adjusted' => 'true',
+    'sort' => 'desc',
+];
+if ($limit !== null) {
+    $query['limit'] = $limit;
+}
+if ($api_key !== null && $api_key !== '') {
+    $query['apiKey'] = $api_key;
+}
+
+$context = stream_context_create([
+    'http' => [
+        'method' => 'GET',
+        'header' => "Accept: application/json\r\n",
+        'timeout' => 20,
+    ],
+]);
+
+$url = $path . '?' . http_build_query($query);
+$response = @file_get_contents($url, false, $context);
 if ($response === false) {
     http_response_code(502);
-    echo json_encode(['error' => 'Failed to fetch data from TickerTick.']);
+    echo json_encode(['error' => 'Failed to fetch data from Massive.']);
     exit;
 }
 
 $payload = json_decode($response, true);
 if (!is_array($payload)) {
-    echo json_encode(['stories' => []]);
+    echo json_encode([]);
     exit;
 }
 
-$stories = $payload['stories'] ?? [];
-if (!is_array($stories)) {
-    $stories = [];
+$results = $payload['results'] ?? [];
+if (!is_array($results)) {
+    $results = [];
 }
 
-if ($from !== null && $to !== null) {
-    $from_ms = $from * 1000;
-    $to_ms = $to * 1000;
-    $stories = array_values(array_filter($stories, static function ($story) use ($from_ms, $to_ms) {
-        if (!is_array($story) || !isset($story['time'])) {
-            return false;
-        }
-        $time = (int)$story['time'];
-        return $time >= $from_ms && $time <= $to_ms;
-    }));
+$candles = [];
+foreach ($results as $bar) {
+    if (!is_array($bar) || !isset($bar['t'], $bar['o'], $bar['h'], $bar['l'], $bar['c'], $bar['v'])) {
+        continue;
+    }
+    $candles[] = [
+        (int)floor(((int)$bar['t']) / 1000),
+        (float)$bar['l'],
+        (float)$bar['h'],
+        (float)$bar['o'],
+        (float)$bar['c'],
+        (float)$bar['v'],
+    ];
 }
 
-$payload['stories'] = $stories;
-echo json_encode($payload);
+echo json_encode($candles);
