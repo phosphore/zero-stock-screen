@@ -1,6 +1,6 @@
 # Zero BTC Screen
 
-Bitcoin (or any other currency) stock price for your RPi Zero
+Bitcoin (or any other asset) price for your RPi Zero
 
 ![display](docs/display.jpg)
 
@@ -70,8 +70,12 @@ console_logs             : false
 #logs_file               : /tmp/zero-btc-screen.log
 dummy_data               : false
 refresh_interval_minutes : 15
-# Price pair from Coinbase e.g. BTC-EUR or ADA-GBP
-currency                 : BTC-USD
+# Data API base URL (must serve /products/{ticker}/candles like Coinbase)
+data_api_base_url        : https://api.exchange.coinbase.com
+# Price pair from Coinbase (BTC-EUR, ADA-GBP) or a stock/ETF ticker from your API
+ticker                   : BTC-USD
+# Optional label shown on the screen (defaults to first part of ticker)
+#ticker_label            : BTC
 
 # Enabled screens or devices
 screens : [
@@ -107,6 +111,20 @@ filename : /home/pi/output.png
 [inkyWhatRBW]
 mode : candle
 ```
+
+### Custom stock/ETF data
+
+To use arbitrary stock or ETF tickers, host a small service that matches Coinbase's
+`/products/{ticker}/candles` response format. The endpoint should return a JSON array of arrays:
+
+```
+[
+  [time, low, high, open, close, volume],
+  ...
+]
+```
+
+Configure `data_api_base_url` to point to your service and set `ticker` to the symbol you want to display.
 
 ### Autostart
 

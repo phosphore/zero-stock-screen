@@ -25,7 +25,9 @@ def fetch_prices():
     timeslot_end = datetime.now(timezone.utc)
     end_date = timeslot_end.strftime(DATETIME_FORMAT)
     start_data = (timeslot_end - timedelta(days=DATA_SLICE_DAYS)).strftime(DATETIME_FORMAT)
-    url = (f'https://api.exchange.coinbase.com/products/{config.currency}/candles?'
+    base_url = config.data_api_base_url.rstrip('/')
+    ticker = urllib.parse.quote(config.ticker, safe='')
+    url = (f'{base_url}/products/{ticker}/candles?'
            f'granularity=900&start={urllib.parse.quote_plus(start_data)}&end={urllib.parse.quote_plus(end_date)}')
     headers = {"Accept": "application/json"}
     response = requests.request("GET", url, headers=headers)

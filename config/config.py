@@ -33,8 +33,23 @@ class Config:
         return self._conf.getint('base', 'refresh_interval_minutes', fallback=15) * 60
 
     @property
+    def ticker(self):
+        return self._conf.get('base', 'ticker', fallback=self._conf.get('base', 'currency', fallback='BTC-USD'))
+
+    @property
+    def display_ticker(self):
+        label = self._conf.get('base', 'ticker_label', fallback='').strip()
+        if label:
+            return label
+        return self.ticker.split('-', 1)[0]
+
+    @property
+    def data_api_base_url(self):
+        return self._conf.get('base', 'data_api_base_url', fallback='https://api.exchange.coinbase.com')
+
+    @property
     def currency(self):
-        return self._conf.get('base', 'currency', fallback='BTC')
+        return self.ticker
 
     @staticmethod
     def _load_screens(file_name):
