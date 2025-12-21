@@ -5,9 +5,15 @@ class Plot:
     @staticmethod
     def line(prices, size=(100, 100), position=(0, 0), draw=None, fill=None):
         assert draw
+        if not prices:
+            return
         max_price = max(prices)
         min_price = min(prices)
-        normalised_prices = [(price - min_price) / (max_price - min_price) for price in prices]
+        price_range = max_price - min_price
+        if price_range == 0:
+            normalised_prices = [0.5 for _ in prices]
+        else:
+            normalised_prices = [(price - min_price) / price_range for price in prices]
         plot_data = []
         for i, element in enumerate(normalised_prices):
             x = i * (size[0] / len(normalised_prices)) + position[0]
@@ -25,6 +31,8 @@ class Plot:
             else:
                 return position_first[0]
 
+        if not prices:
+            return
         max_price = max(prices)
         min_price = min(prices)
         price_step = (max_price - min_price) / (labels_number - 1)
