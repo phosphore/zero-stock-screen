@@ -7,6 +7,7 @@ except ImportError:
     pass
 from data.plot import Plot
 from presentation.observer import Observer
+from presentation.screens.screen_utils import draw_market_status, parse_screen_payload
 
 SCREEN_HEIGHT = 176
 SCREEN_WIDTH = 264
@@ -32,7 +33,7 @@ class Epd2in7v1(Observer):
         epd.Clear(0xFF)
         return epd
 
-    def form_image(self, prices, screen_draw):
+    def form_image(self, prices, screen_draw, market_closed=False):
         screen_draw.rectangle((0, 0, SCREEN_WIDTH, SCREEN_HEIGHT), fill="#ffffff")
         screen_draw = self.screen_draw
         if self.mode == "candle":
@@ -46,9 +47,12 @@ class Epd2in7v1(Observer):
         screen_draw.line([(9, 130), (255, 130)])
         screen_draw.line([(41, 4), (41, 126)])
         Plot.caption(flatten_prices[len(flatten_prices) - 1], 139, SCREEN_WIDTH, FONT_LARGE, screen_draw, None, 12, 64)
+        if market_closed:
+            draw_market_status(screen_draw, FONT_SMALL, SCREEN_WIDTH, SCREEN_HEIGHT, fill=0)
 
     def update(self, data):
-        self.form_image(data, self.screen_draw)
+        prices, market_closed = parse_screen_payload(data)
+        self.form_image(prices, self.screen_draw, market_closed)
         screen_image_rotated = self.screen_image.rotate(180)
         self.epd.display(self.epd.getbuffer(screen_image_rotated))
 

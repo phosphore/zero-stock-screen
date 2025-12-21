@@ -4,6 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from data.plot import Plot
 from presentation.observer import Observer
+from presentation.screens.screen_utils import draw_market_status, parse_screen_payload
 
 SCREEN_HEIGHT = 122
 SCREEN_WIDTH = 250
@@ -20,7 +21,8 @@ class Picture(Observer):
         self.filename = filename
         self.mode = mode
 
-    def update(self, prices):
+    def update(self, data):
+        prices, market_closed = parse_screen_payload(data)
         image = Image.new('1', (SCREEN_WIDTH, SCREEN_HEIGHT), 255)
         screen_draw = ImageDraw.Draw(image)
         if self.mode == "candle":
@@ -35,6 +37,8 @@ class Picture(Observer):
         screen_draw.line([(39, 4), (39, 94)])
         screen_draw.line([(60, 102), (60, 119)])
         Plot.caption(flatten_prices[len(flatten_prices) - 1], 95, SCREEN_WIDTH, FONT_LARGE, screen_draw)
+        if market_closed:
+            draw_market_status(screen_draw, FONT_SMALL, SCREEN_WIDTH, SCREEN_HEIGHT, fill=0)
         image.save(self.filename)
 
     def close(self):

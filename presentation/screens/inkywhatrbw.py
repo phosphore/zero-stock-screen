@@ -4,6 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from data.plot import Plot
 from presentation.observer import Observer
+from presentation.screens.screen_utils import draw_market_status, parse_screen_payload
 
 try:
     from inky import InkyWHAT
@@ -31,7 +32,7 @@ class Inkywhatrbw(Observer):
         self.image = Image.new('P', (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.mode = mode
 
-    def form_image(self, prices):
+    def form_image(self, prices, market_closed=False):
         WHITE = self.inky_display.WHITE
         RED = self.inky_display.RED
         BLACK = self.inky_display.BLACK
@@ -48,9 +49,12 @@ class Inkywhatrbw(Observer):
         screen_draw.line([(0, SCREEN_HEIGHT - BOTTOM_MARGIN), (SCREEN_WIDTH, SCREEN_HEIGHT - BOTTOM_MARGIN)], fill=BLACK)
         screen_draw.line([(LEFT_MARGIN, 0), (LEFT_MARGIN, SCREEN_HEIGHT - BOTTOM_MARGIN)], fill=BLACK)
         Plot.caption(flatten_prices[len(flatten_prices) - 1], SCREEN_HEIGHT - BOTTOM_MARGIN, SCREEN_WIDTH, FONT_LARGE, screen_draw, fill=BLACK, currency_offset=LEFT_MARGIN, price_offset=LEFT_MARGIN)
+        if market_closed:
+            draw_market_status(screen_draw, FONT_SMALL, SCREEN_WIDTH, SCREEN_HEIGHT, fill=BLACK)
 
     def update(self, data):
-        self.form_image(data)
+        prices, market_closed = parse_screen_payload(data)
+        self.form_image(prices, market_closed)
         self.inky_display.set_image(self.image)
         self.inky_display.show()
 

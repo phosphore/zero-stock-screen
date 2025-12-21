@@ -7,6 +7,7 @@ except ImportError:
     pass
 from data.plot import Plot
 from presentation.observer import Observer
+from presentation.screens.screen_utils import draw_market_status, parse_screen_payload
 
 SCREEN_HEIGHT = 280
 SCREEN_WIDTH = 480
@@ -35,7 +36,7 @@ class Epd3in7(Observer):
         epd.Clear(0xFF, 1)
         return epd
 
-    def form_image(self, prices, screen_draw):
+    def form_image(self, prices, screen_draw, market_closed=False):
         screen_draw.rectangle((0, 0, SCREEN_WIDTH, SCREEN_HEIGHT), fill="#ffffff")
         if self.mode == "candle":
             Plot.candle(prices, size=(SCREEN_WIDTH - 45, SCREEN_HEIGHT - 27), position=(41, 0), draw=screen_draw)
@@ -55,9 +56,12 @@ class Epd3in7(Observer):
         Plot.percentage(prices, SCREEN_WIDTH - 56, SCREEN_HEIGHT - 27, FONT_LARGE, screen_draw)
 
         screen_draw.line([(366, SCREEN_HEIGHT - 23), (366, SCREEN_HEIGHT - 1)])
+        if market_closed:
+            draw_market_status(screen_draw, FONT_SMALL, SCREEN_WIDTH, SCREEN_HEIGHT, fill=0)
 
     def update(self, data):
-        self.form_image(data, self.screen_draw)
+        prices, market_closed = parse_screen_payload(data)
+        self.form_image(prices, self.screen_draw, market_closed)
         screen_image_rotated = self.screen_image.rotate(180)
         self.epd.display_1Gray(self.epd.getbuffer(screen_image_rotated))
 
