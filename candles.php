@@ -86,6 +86,25 @@ function map_granularity(int $granularity): array
     return [$granularity, 'second'];
 }
 
+$market_timezone = new DateTimeZone('America/New_York');
+
+function previous_market_close(int $timestamp, DateTimeZone $timezone): int
+{
+    $date = (new DateTimeImmutable('@' . $timestamp))->setTimezone($timezone);
+    $close_time = $date->setTime(16, 0, 0);
+    if ($date < $close_time) {
+        $date = $date->modify('-1 day')->setTime(16, 0, 0);
+    } else {
+        $date = $close_time;
+    }
+
+    while (in_array((int)$date->format('N'), [6, 7], true)) {
+        $date = $date->modify('-1 day')->setTime(16, 0, 0);
+    }
+
+    return $date->getTimestamp();
+}
+
 $api_key = resolve_api_key();
 $granularity = resolve_granularity();
 [$multiplier, $timespan] = map_granularity($granularity);
@@ -111,15 +130,6 @@ if ($limit !== null) {
     $limit = max(1, min($limit, 50000));
 }
 
-$path = sprintf(
-    'https://api.massive.com/v2/aggs/ticker/%s/range/%d/%s/%d/%d',
-    rawurlencode($ticker),
-    $multiplier,
-    $timespan,
-    $from_ms,
-    $to_ms
-);
-
 $query = [
     'adjusted' => 'true',
     'sort' => 'desc',
@@ -139,38 +149,83 @@ $context = stream_context_create([
     ],
 ]);
 
-$url = $path . '?' . http_build_query($query);
-$response = @file_get_contents($url, false, $context);
-if ($response === false) {
-    http_response_code(502);
-    echo json_encode(['error' => 'Failed to fetch data from Massive.']);
-    exit;
-}
-
-$payload = json_decode($response, true);
-if (!is_array($payload)) {
-    echo json_encode([]);
-    exit;
-}
-
-$results = $payload['results'] ?? [];
-if (!is_array($results)) {
-    $results = [];
-}
-
-$candles = [];
-foreach ($results as $bar) {
-    if (!is_array($bar) || !isset($bar['t'], $bar['o'], $bar['h'], $bar['l'], $bar['c'], $bar['v'])) {
-        continue;
+function fetch_candles(
+    string $ticker,
+    int $multiplier,
+    string $timespan,
+    int $from_ms,
+    int $to_ms,
+    array $query,
+    array $context
+): array {
+    $path = sprintf(
+        'https://api.massive.com/v2/aggs/ticker/%s/range/%d/%s/%d/%d',
+        rawurlencode($ticker),
+        $multiplier,
+        $timespan,
+        $from_ms,
+        $to_ms
+    );
+    $url = $path . '?' . http_build_query($query);
+    $response = @file_get_contents($url, false, $context);
+    if ($response === false) {
+        return ['error' => 'Failed to fetch data from Massive.'];
     }
-    $candles[] = [
-        (int)floor(((int)$bar['t']) / 1000),
-        (float)$bar['l'],
-        (float)$bar['h'],
-        (float)$bar['o'],
-        (float)$bar['c'],
-        (float)$bar['v'],
-    ];
+
+    $payload = json_decode($response, true);
+    if (!is_array($payload)) {
+        return [];
+    }
+
+    $results = $payload['results'] ?? [];
+    if (!is_array($results)) {
+        return [];
+    }
+
+    $candles = [];
+    foreach ($results as $bar) {
+        if (!is_array($bar) || !isset($bar['t'], $bar['o'], $bar['h'], $bar['l'], $bar['c'], $bar['v'])) {
+            continue;
+        }
+        $candles[] = [
+            (int)floor(((int)$bar['t']) / 1000),
+            (float)$bar['l'],
+            (float)$bar['h'],
+            (float)$bar['o'],
+            (float)$bar['c'],
+            (float)$bar['v'],
+        ];
+    }
+    return $candles;
+}
+
+$candles = fetch_candles($ticker, $multiplier, $timespan, $from_ms, $to_ms, $query, $context);
+if (isset($candles['error'])) {
+    http_response_code(502);
+    echo json_encode($candles);
+    exit;
+}
+
+if (empty($candles)) {
+    $duration = max(0, $to - $from);
+    $adjusted_to = previous_market_close($to, $market_timezone);
+    if ($duration > 0 && $adjusted_to > 0) {
+        $adjusted_from = max(0, $adjusted_to - $duration);
+        $candles = fetch_candles(
+            $ticker,
+            $multiplier,
+            $timespan,
+            $adjusted_from * 1000,
+            $adjusted_to * 1000,
+            $query,
+            $context
+        );
+        if (isset($candles['error'])) {
+            http_response_code(502);
+            echo json_encode($candles);
+            exit;
+        }
+    }
 }
 
 echo json_encode($candles);
