@@ -30,8 +30,26 @@ def fetch_prices():
     url = (f'{base_url}/products/{ticker}/candles?'
            f'granularity=900&start={urllib.parse.quote_plus(start_data)}&end={urllib.parse.quote_plus(end_date)}')
     headers = {"Accept": "application/json"}
-    response = requests.request("GET", url, headers=headers)
-    external_data = json.loads(response.text)
+    try:
+        response = requests.request("GET", url, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        logger.error("Failed to fetch prices from data API: %s", exc)
+        return []
+
+    try:
+        external_data = response.json()
+    except json.JSONDecodeError as exc:
+        logger.error("Failed to decode JSON from data API: %s", exc)
+        return []
+
+    if not isinstance(external_data, list):
+        logger.error("Unexpected data API response type: %s", type(external_data).__name__)
+        return []
+
+    if not external_data:
+        return []
+
     prices = [entry[1:5] for entry in external_data[::-1]]
     return prices
 
