@@ -23,4 +23,11 @@ def draw_market_status(draw, font, screen_width, screen_height, fill, position="
     else:
         x = screen_width - text_width - padding
         y = padding
-    draw.text((x, y), MARKET_STATUS_LABEL, font=font, fill=fill)
+    draw.text(
+        (x, y),
+        MARKET_STATUS_LABEL,
+        font=font,
+        fill=fill,
+        stroke_width=1,
+        stroke_fill=fill,
+    )
