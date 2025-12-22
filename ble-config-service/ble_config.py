@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from typing import Dict, List, Optional, Tuple
 
 from bluezero import adapter, peripheral
@@ -304,11 +305,7 @@ class BleConfigServer:
             raise RuntimeError("No Bluetooth adapters found")
         adapter_address = self._resolve_adapter_address(adapters[0])
         use_adapter = adapter.Adapter(adapter_address)
-        try:
-            if not use_adapter.powered:
-                use_adapter.powered = True
-        except Exception as exc:
-            logging.warning("Failed to power Bluetooth adapter: %s", exc)
+        self._ensure_adapter_powered(use_adapter)
         self.peripheral = peripheral.Peripheral(
             adapter_address=adapter_address,
             local_name="ZeroStock Config",
@@ -352,6 +349,19 @@ class BleConfigServer:
                 if isinstance(value, str):
                     return value
         raise RuntimeError("Bluetooth adapter address not found")
+
+    @staticmethod
+    def _ensure_adapter_powered(use_adapter) -> None:
+        for _ in range(5):
+            try:
+                if use_adapter.powered:
+                    return
+                use_adapter.powered = True
+            except Exception as exc:
+                logging.warning("Failed to power Bluetooth adapter: %s", exc)
+            time.sleep(0.5)
+        if not use_adapter.powered:
+            raise RuntimeError("Bluetooth adapter is not powered")
 
     def _get_characteristic(self, uuid: str):
         for service in getattr(self.peripheral, "services", []):
