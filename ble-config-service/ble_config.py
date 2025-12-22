@@ -299,7 +299,7 @@ def _encode_value(text: str) -> List[int]:
 
 class BleConfigServer:
     def __init__(self) -> None:
-        adapters = adapter.Adapter.available()
+        adapters = list(adapter.Adapter.available())
         if not adapters:
             raise RuntimeError("No Bluetooth adapters found")
         self.peripheral = peripheral.Peripheral(adapter_addr=adapters[0], local_name="ZeroStock Config")
