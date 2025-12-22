@@ -320,7 +320,7 @@ class BleConfigServer:
             flags=["write", "write-without-response"],
             write_callback=self._on_write,
         )
-        self.peripheral.add_characteristic(
+        self.tx_characteristic = self.peripheral.add_characteristic(
             srv_id=1,
             chr_id=2,
             uuid=TX_UUID,
@@ -337,8 +337,6 @@ class BleConfigServer:
             flags=["read"],
             read_callback=self._on_read,
         )
-        self.tx_characteristic = self._get_characteristic(TX_UUID)
-
     @staticmethod
     def _resolve_adapter_address(adapter_entry):
         if isinstance(adapter_entry, str):
