@@ -302,8 +302,9 @@ class BleConfigServer:
         adapters = list(adapter.Adapter.available())
         if not adapters:
             raise RuntimeError("No Bluetooth adapters found")
+        adapter_address = self._resolve_adapter_address(adapters[0])
         self.peripheral = peripheral.Peripheral(
-            adapter_address=adapters[0],
+            adapter_address=adapter_address,
             local_name="ZeroStock Config",
         )
         self.peripheral.add_service(srv_id=1, uuid=SERVICE_UUID, primary=True)
