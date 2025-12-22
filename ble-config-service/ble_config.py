@@ -299,10 +299,14 @@ def _encode_value(text: str) -> List[int]:
 
 class BleConfigServer:
     def __init__(self) -> None:
-        adapters = adapter.Adapter.available()
+        adapters = list(adapter.Adapter.available())
         if not adapters:
             raise RuntimeError("No Bluetooth adapters found")
-        self.peripheral = peripheral.Peripheral(adapter_addr=adapters[0], local_name="ZeroStock Config")
+        adapter_address = self._resolve_adapter_address(adapters[0])
+        self.peripheral = peripheral.Peripheral(
+            adapter_address=adapter_address,
+            local_name="ZeroStock Config",
+        )
         self.peripheral.add_service(srv_id=1, uuid=SERVICE_UUID, primary=True)
         self.peripheral.add_characteristic(
             srv_id=1,
@@ -331,6 +335,17 @@ class BleConfigServer:
             read_callback=self._on_read,
         )
         self.tx_characteristic = self._get_characteristic(TX_UUID)
+
+    @staticmethod
+    def _resolve_adapter_address(adapter_entry):
+        if isinstance(adapter_entry, str):
+            return adapter_entry
+        for attr_name in ("address", "adapter_address", "adapter_addr", "mac_address"):
+            if hasattr(adapter_entry, attr_name):
+                value = getattr(adapter_entry, attr_name)
+                if isinstance(value, str):
+                    return value
+        raise RuntimeError("Bluetooth adapter address not found")
 
     def _get_characteristic(self, uuid: str):
         for service in getattr(self.peripheral, "services", []):
