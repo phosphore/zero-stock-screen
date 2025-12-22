@@ -335,6 +335,17 @@ class BleConfigServer:
         )
         self.tx_characteristic = self._get_characteristic(TX_UUID)
 
+    @staticmethod
+    def _resolve_adapter_address(adapter_entry):
+        if isinstance(adapter_entry, str):
+            return adapter_entry
+        for attr_name in ("address", "adapter_address", "adapter_addr", "mac_address"):
+            if hasattr(adapter_entry, attr_name):
+                value = getattr(adapter_entry, attr_name)
+                if isinstance(value, str):
+                    return value
+        raise RuntimeError("Bluetooth adapter address not found")
+
     def _get_characteristic(self, uuid: str):
         for service in getattr(self.peripheral, "services", []):
             for characteristic in getattr(service, "characteristics", []):
