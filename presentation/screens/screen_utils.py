@@ -48,6 +48,4 @@ def draw_market_status(
         fill=fill,
         stroke_width=stroke_width,
         stroke_fill=stroke_fill,
-        stroke_width=1,
-        stroke_fill=fill,
     )
