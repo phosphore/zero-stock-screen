@@ -40,6 +40,7 @@ def draw_market_status(
         y = padding
     if stroke_width and stroke_fill is None:
         stroke_fill = _stroke_fill_from_fill(fill)
+        
     draw.text(
         (x, y),
         MARKET_STATUS_LABEL,
@@ -47,4 +48,6 @@ def draw_market_status(
         fill=fill,
         stroke_width=stroke_width,
         stroke_fill=stroke_fill,
+        stroke_width=1,
+        stroke_fill=fill,
     )
