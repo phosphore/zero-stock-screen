@@ -33,6 +33,10 @@ class Config:
         return self._conf.getint('base', 'refresh_interval_minutes', fallback=15) * 60
 
     @property
+    def data_range_days(self):
+        return self._conf.getfloat('base', 'data_range_days', fallback=1.0)
+
+    @property
     def ticker(self):
         return self._conf.get('base', 'ticker', fallback=self._conf.get('base', 'currency', fallback='BTC-USD'))
 

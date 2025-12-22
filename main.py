@@ -11,7 +11,6 @@ from config.config import config
 from logs import logger
 from presentation.observer import Observable
 
-DATA_SLICE_DAYS = 1
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M"
 MARKET_TIMEZONE = ZoneInfo("America/New_York")
 MARKET_OPEN_TIME = dt_time(9, 30)
@@ -59,7 +58,8 @@ def fetch_prices():
     market_closed = not is_market_open(current_time)
     timeslot_end = previous_market_close(current_time) if market_closed else current_time
     end_date = timeslot_end.strftime(DATETIME_FORMAT)
-    start_data = (timeslot_end - timedelta(days=DATA_SLICE_DAYS)).strftime(DATETIME_FORMAT)
+    range_days = max(config.data_range_days, 0.0)
+    start_data = (timeslot_end - timedelta(days=range_days)).strftime(DATETIME_FORMAT)
     base_url = config.data_api_base_url.rstrip('/')
     ticker = urllib.parse.quote(config.ticker, safe='')
     url = (f'{base_url}/products/{ticker}/candles?'
