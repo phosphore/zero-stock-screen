@@ -17,6 +17,9 @@ This folder contains the Bluetooth Low Energy (BLE) configuration service, web U
 ```sh
 sudo apt update
 sudo apt install -y bluetooth bluez python3 python3-pip python3-venv libglib2.0-dev
+sudo apt update
+sudo apt install -y bluez bluetooth python3-gi python3-gi-cairo python3-dbus
+sudo systemctl enable --now bluetooth
 ```
 
 ### 2) Enable Bluetooth service
@@ -45,7 +48,7 @@ sudo cp /home/pi/zero-stock-screen/ble-config-service/zero-stock-ble-config.serv
 ### 5) Start on boot
 
 ```sh
-sudo systemctl daemon-reload
+sudo systemctl daemon-reload  
 sudo systemctl enable zero-stock-ble-config.service
 sudo systemctl start zero-stock-ble-config.service
 ```
