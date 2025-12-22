@@ -1,0 +1,15 @@
+[Unit]
+Description=ZeroStock BLE Config Service
+After=bluetooth.target
+Requires=bluetooth.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/zero-stock-screen/ble-config-service
+ExecStart=/usr/bin/env python3 /home/pi/zero-stock-screen/ble-config-service/ble_config.py
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
