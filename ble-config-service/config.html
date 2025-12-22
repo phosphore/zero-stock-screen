@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZeroStock BLE Config</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f6f7fb;
+      color: #1f2933;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(20, 20, 20, 0.08);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 12px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #d6dbe0;
+      margin-bottom: 14px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #2563eb;
+      border: none;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #475569;
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .row > div {
+      flex: 1 1 160px;
+    }
+    #log {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      min-height: 80px;
+      white-space: pre-wrap;
+    }
+    .hint {
+      font-size: 12px;
+      color: #566070;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>ZeroStock BLE Config</h1>
+    <p class="hint">Web Bluetooth works on Chrome/Edge over HTTPS or localhost. Android Chrome is recommended.</p>
+    <div class="row">
+      <button id="connect">Connect</button>
+      <button id="refresh" class="secondary">Reload</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>WiFi</h1>
+    <label for="ssid">SSID</label>
+    <input id="ssid" type="text" placeholder="MyWifi" />
+    <label for="psk">Password</label>
+    <input id="psk" type="password" placeholder="••••••••" />
+  </div>
+
+  <div class="card">
+    <h1>Base Config</h1>
+    <div class="row">
+      <div>
+        <label for="refresh">Refresh interval (minutes)</label>
+        <input id="refresh" type="number" min="1" max="1440" step="1" />
+      </div>
+      <div>
+        <label for="range">Data range (days)</label>
+        <input id="range" type="number" min="0.1" max="365" step="0.1" />
+      </div>
+    </div>
+    <label for="baseUrl">Data API base URL</label>
+    <input id="baseUrl" type="text" />
+    <label for="ticker">Ticker</label>
+    <input id="ticker" type="text" />
+  </div>
+
+  <div class="card">
+    <h1>Display</h1>
+    <label for="mode">Mode</label>
+    <select id="mode">
+      <option value="">(no change)</option>
+      <option value="candle">Candle</option>
+      <option value="line">Line</option>
+    </select>
+    <label>
+      <input id="restart" type="checkbox" /> Restart screen service after update
+    </label>
+    <div class="row">
+      <button id="save">Save</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Status</h1>
+    <div id="log">Disconnected.</div>
+  </div>
+
+  <script>
+    const serviceUuid = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+    const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+    const rdUuid = '6e400004-b5a3-f393-e0a9-e50e24dcca9e';
+
+    let device;
+    let rxCharacteristic;
+    let txCharacteristic;
+    let rdCharacteristic;
+
+    const logEl = document.getElementById('log');
+
+    function log(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      logEl.textContent = `[${timestamp}] ${message}\n` + logEl.textContent;
+    }
+
+    function getValue(id) {
+      return document.getElementById(id).value.trim();
+    }
+
+    async function connect() {
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [serviceUuid] }],
+      });
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService(serviceUuid);
+      rxCharacteristic = await service.getCharacteristic(rxUuid);
+      txCharacteristic = await service.getCharacteristic(txUuid);
+      rdCharacteristic = await service.getCharacteristic(rdUuid);
+
+      await txCharacteristic.startNotifications();
+      txCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
+        const value = new TextDecoder().decode(event.target.value);
+        log(value);
+      });
+
+      log('Connected.');
+      await loadConfig();
+    }
+
+    async function loadConfig() {
+      if (!rdCharacteristic) {
+        log('Not connected.');
+        return;
+      }
+      const value = await rdCharacteristic.readValue();
+      const payload = new TextDecoder().decode(value);
+      try {
+        const data = JSON.parse(payload);
+        if (data.base) {
+          if (data.base.refresh_interval_minutes !== undefined) {
+            document.getElementById('refresh').value = data.base.refresh_interval_minutes;
+          }
+          if (data.base.data_range_days !== undefined) {
+            document.getElementById('range').value = data.base.data_range_days;
+          }
+          if (data.base.data_api_base_url) {
+            document.getElementById('baseUrl').value = data.base.data_api_base_url;
+          }
+          if (data.base.ticker) {
+            document.getElementById('ticker').value = data.base.ticker;
+          }
+        }
+        if (data.epd2in13v3 && data.epd2in13v3.mode) {
+          document.getElementById('mode').value = data.epd2in13v3.mode.toLowerCase();
+        }
+        log('Loaded current config.');
+      } catch (error) {
+        log(`Failed to parse config: ${error}`);
+      }
+    }
+
+    async function saveConfig() {
+      if (!rxCharacteristic) {
+        log('Not connected.');
+        return;
+      }
+
+      const payload = {};
+
+      const ssid = getValue('ssid');
+      const psk = getValue('psk');
+      if (ssid || psk) {
+        payload.wifi = { ssid, psk };
+      }
+
+      const refresh = getValue('refresh');
+      const range = getValue('range');
+      const baseUrl = getValue('baseUrl');
+      const ticker = getValue('ticker');
+      const mode = getValue('mode');
+
+      const base = {};
+      if (refresh) base.refresh_interval_minutes = Number.parseInt(refresh, 10);
+      if (range) base.data_range_days = Number.parseFloat(range);
+      if (baseUrl) base.data_api_base_url = baseUrl;
+      if (ticker) base.ticker = ticker;
+      if (Object.keys(base).length) payload.base = base;
+
+      if (mode) {
+        payload.epd2in13v3 = { mode };
+      }
+
+      payload.restart = document.getElementById('restart').checked;
+
+      const encoded = new TextEncoder().encode(JSON.stringify(payload));
+      if (rxCharacteristic.writeValueWithoutResponse) {
+        await rxCharacteristic.writeValueWithoutResponse(encoded);
+      } else {
+        await rxCharacteristic.writeValue(encoded);
+      }
+      log('Sent update.');
+    }
+
+    document.getElementById('connect').addEventListener('click', () => {
+      connect().catch((error) => log(`Connection error: ${error}`));
+    });
+
+    document.getElementById('refresh').addEventListener('click', () => {
+      loadConfig().catch((error) => log(`Read error: ${error}`));
+    });
+
+    document.getElementById('save').addEventListener('click', () => {
+      saveConfig().catch((error) => log(`Write error: ${error}`));
+    });
+  </script>
+</body>
+</html>
