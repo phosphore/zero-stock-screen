@@ -29,6 +29,12 @@ sudo systemctl enable bluetooth
 sudo systemctl start bluetooth
 ```
 
+If the adapter is blocked, unblock it before starting the service:
+
+```sh
+sudo rfkill unblock bluetooth
+```
+
 ### 3) Install Python dependency (bluezero)
 
 ```sh
