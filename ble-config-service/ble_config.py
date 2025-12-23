@@ -17,7 +17,7 @@ TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 RD_UUID = "6e400004-b5a3-f393-e0a9-e50e24dcca9e"
 
 CONFIG_PATH = "/home/pi/zero-stock-screen/configuration.cfg"
-SCREEN_SERVICE = "zero-btc-screen.service"
+SCREEN_SERVICE = "stock-screen.service"
 
 def _read_lines(path: str) -> List[str]:
     with open(path, "r", encoding="utf-8") as handle:
