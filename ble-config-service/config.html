@@ -57,6 +57,28 @@
     .row > div {
       flex: 1 1 160px;
     }
+    .input-group {
+      position: relative;
+    }
+    .input-group input {
+      padding-right: 140px;
+      margin-bottom: 8px;
+    }
+    .toggle-password {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: #2563eb;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+    .toggle-password:focus {
+      outline: 2px solid #93c5fd;
+      outline-offset: 2px;
+    }
     #log {
       background: #0f172a;
       color: #f8fafc;
@@ -88,7 +110,11 @@
     <label for="ssid">SSID</label>
     <input id="ssid" type="text" placeholder="MyWifi" />
     <label for="psk">Password</label>
-    <input id="psk" type="password" placeholder="••••••••" />
+    <div class="input-group">
+      <input id="psk" type="password" placeholder="••••••••" />
+      <button id="togglePassword" class="toggle-password" type="button">👁 Show password</button>
+    </div>
+    <div id="wifiStatus" class="hint">Status: Unknown</div>
   </div>
 
   <div class="card">
@@ -118,8 +144,11 @@
       <option value="line">Line</option>
     </select>
     <label>
-      <input id="restart" type="checkbox" /> Restart screen service after update
+      <input id="restart" type="checkbox" checked /> Restart screen service after update
     </label>
+  </div>
+
+  <div class="card">
     <div class="row">
       <button id="save">Save</button>
     </div>
@@ -206,6 +235,9 @@
           }
           if (data.wifi.psk) {
             document.getElementById('psk').value = data.wifi.psk;
+          }
+          if (data.wifi.status) {
+            document.getElementById('wifiStatus').textContent = `Status: ${data.wifi.status}`;
           }
         }
         if (data.epd2in13v3 && data.epd2in13v3.mode) {
@@ -308,6 +340,14 @@
 
     document.getElementById('save').addEventListener('click', () => {
       saveConfig().catch((error) => log(`Write error: ${error}`));
+    });
+
+    document.getElementById('togglePassword').addEventListener('click', () => {
+      const passwordInput = document.getElementById('psk');
+      const toggleButton = document.getElementById('togglePassword');
+      const isHidden = passwordInput.type === 'password';
+      passwordInput.type = isHidden ? 'text' : 'password';
+      toggleButton.textContent = isHidden ? '🙈 Hide password' : '👁 Show password';
     });
   </script>
 </body>
