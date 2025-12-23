@@ -428,12 +428,36 @@ def _load_wifi_details() -> Dict[str, str]:
 
 def _provision_wifi(ssid: str, psk: str) -> Tuple[bool, str]:
     if shutil.which("nmcli"):
+        active_connection, _device = _get_active_wifi_connection()
+        safe_suffix = re.sub(r"[^a-zA-Z0-9_-]+", "-", ssid)[:32] or "wifi"
+        connection_name = f"ble-{safe_suffix}-{int(time.time())}"
         success, output = _run_command(
-            ["nmcli", "dev", "wifi", "connect", ssid, "password", psk, "ifname", "wlan0"]
+            ["nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0", "con-name", connection_name, "ssid", ssid]
         )
+        if not success:
+            return False, output or "nmcli connection add failed"
+        success, output = _run_command(
+            [
+                "nmcli",
+                "connection",
+                "modify",
+                connection_name,
+                "wifi-sec.key-mgmt",
+                "wpa-psk",
+                "wifi-sec.psk",
+                psk,
+            ]
+        )
+        if not success:
+            _run_command(["nmcli", "connection", "delete", connection_name])
+            return False, output or "nmcli connection modify failed"
+        success, output = _run_command(["nmcli", "connection", "up", connection_name])
         if success:
             return True, "connected"
-        return False, output or "nmcli failed"
+        if active_connection:
+            _run_command(["nmcli", "connection", "up", active_connection])
+        _run_command(["nmcli", "connection", "delete", connection_name])
+        return False, output or "nmcli connect failed"
 
     if not shutil.which("wpa_passphrase"):
         return False, "wpa_passphrase not available"
