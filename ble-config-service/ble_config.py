@@ -514,10 +514,20 @@ class BleConfigServer:
         self.tx_characteristic.value = _encode_value(message)
         self.peripheral.notify(1, 2)
 
-    def _on_read(self) -> List[int]:
+    def _on_read(self, *args) -> List[int]:
+        offset = 0
+        if args:
+            candidate = args[0]
+            if isinstance(candidate, int):
+                offset = candidate
+            elif isinstance(candidate, dict) and "offset" in candidate:
+                offset = int(candidate["offset"])
         data = _load_config_values(CONFIG_PATH)
         payload = json.dumps(data, ensure_ascii=False)
-        return _encode_value(payload)
+        encoded = _encode_value(payload)
+        if offset <= 0:
+            return encoded
+        return encoded[offset:]
 
     def _on_write(self, value: List[int], *_args) -> None:
         try:
