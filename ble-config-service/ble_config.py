@@ -370,15 +370,59 @@ def _get_active_psk(connection_name: Optional[str], ssid: Optional[str]) -> Opti
     return None
 
 
+def _get_wifi_status() -> Optional[str]:
+    if not shutil.which("nmcli"):
+        return "Unknown"
+    success, output = _run_command(["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL", "dev", "wifi"])
+    if success:
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split(":", 2)
+            if len(parts) != 3:
+                continue
+            in_use, ssid, signal = parts
+            if in_use != "*":
+                continue
+            readable_ssid = ssid.strip()
+            signal_value = signal.strip()
+            if signal_value.isdigit():
+                if readable_ssid:
+                    return f"Connected to {readable_ssid} (signal {signal_value}%)"
+                return f"Connected (signal {signal_value}%)"
+            if readable_ssid:
+                return f"Connected to {readable_ssid}"
+            return "Connected"
+    success, output = _run_command(["nmcli", "-t", "-f", "DEVICE,STATE,TYPE", "dev", "status"])
+    if success:
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split(":", 2)
+            if len(parts) != 3:
+                continue
+            _device, state, device_type = parts
+            if device_type == "wifi":
+                if state == "connected":
+                    return "Connected"
+                if state == "disconnected":
+                    return "Disconnected"
+                return state.replace("-", " ").title()
+    return "Unknown"
+
+
 def _load_wifi_details() -> Dict[str, str]:
     connection_name, _device = _get_active_wifi_connection()
     ssid = _get_active_ssid()
     psk = _get_active_psk(connection_name, ssid)
+    status = _get_wifi_status()
     wifi: Dict[str, str] = {}
     if ssid:
         wifi["ssid"] = ssid
     if psk:
         wifi["psk"] = psk
+    if status:
+        wifi["status"] = status
     return wifi
 
 
