@@ -299,7 +299,11 @@
       const ssid = getValue('ssid');
       const psk = getValue('psk');
       if (ssid || psk) {
-        payload.wifi = { ssid, psk };
+        if (ssid && psk) {
+          payload.wifi = { ssid, psk };
+        } else {
+          log('WiFi update requires both SSID and password; skipping WiFi changes.');
+        }
       }
 
       const refresh = getValue('refreshInterval');
