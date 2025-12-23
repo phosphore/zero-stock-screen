@@ -179,8 +179,9 @@
       }
       const value = await rdCharacteristic.readValue();
       const payload = new TextDecoder().decode(value);
+      const sanitizedPayload = payload.replace(/\0/g, '').trim();
       try {
-        const data = JSON.parse(payload);
+        const data = JSON.parse(sanitizedPayload);
         if (data.base) {
           if (data.base.refresh_interval_minutes !== undefined) {
             document.getElementById('refreshInterval').value = data.base.refresh_interval_minutes;
