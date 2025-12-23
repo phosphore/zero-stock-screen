@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import configparser
 import grp
 import json
 import logging
@@ -329,6 +330,10 @@ def _get_active_psk(connection_name: Optional[str], ssid: Optional[str]) -> Opti
             if psk:
                 return psk
 
+    nmconnection_psk = _get_nmconnection_psk(connection_name, ssid)
+    if nmconnection_psk:
+        return nmconnection_psk
+
     if not ssid:
         return None
     supplicant_path = "/etc/wpa_supplicant/wpa_supplicant.conf"
@@ -367,6 +372,38 @@ def _get_active_psk(connection_name: Optional[str], ssid: Optional[str]) -> Opti
         if psk_match:
             current_psk = psk_match.group(1)
             continue
+    return None
+
+
+def _get_nmconnection_psk(connection_name: Optional[str], ssid: Optional[str]) -> Optional[str]:
+    connection_dir = "/etc/NetworkManager/system-connections"
+    if not os.path.isdir(connection_dir):
+        return None
+
+    target_name = connection_name.strip() if connection_name else None
+    target_ssid = ssid.strip() if ssid else None
+    for entry in os.listdir(connection_dir):
+        path = os.path.join(connection_dir, entry)
+        if not os.path.isfile(path):
+            continue
+        parser = configparser.ConfigParser()
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                parser.read_file(handle)
+        except (OSError, configparser.Error):
+            continue
+        entry_name = parser.get("connection", "id", fallback=None)
+        entry_ssid = parser.get("wifi", "ssid", fallback=None)
+        if target_name and entry_name != target_name:
+            continue
+        if target_ssid and entry_ssid != target_ssid:
+            continue
+        psk_flags = parser.get("wifi-security", "psk-flags", fallback="0")
+        if psk_flags not in ("0", "0\n"):
+            continue
+        psk = parser.get("wifi-security", "psk", fallback="").strip()
+        if psk:
+            return psk
     return None
 
 
