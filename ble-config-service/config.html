@@ -181,7 +181,11 @@
       const payload = new TextDecoder().decode(value);
       const sanitizedPayload = payload.replace(/\0/g, '').trim();
       try {
-        const data = JSON.parse(sanitizedPayload);
+        const extractedPayload = extractJsonObject(sanitizedPayload);
+        if (!extractedPayload) {
+          throw new Error('no valid JSON object found');
+        }
+        const data = JSON.parse(extractedPayload);
         if (data.base) {
           if (data.base.refresh_interval_minutes !== undefined) {
             document.getElementById('refreshInterval').value = data.base.refresh_interval_minutes;
@@ -211,6 +215,43 @@
       } catch (error) {
         log(`Failed to parse config: ${error}`);
       }
+    }
+
+    function extractJsonObject(text) {
+      const start = text.indexOf('{');
+      if (start === -1) {
+        return null;
+      }
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      for (let i = start; i < text.length; i += 1) {
+        const char = text[i];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (inString) {
+          continue;
+        }
+        if (char === '{') {
+          depth += 1;
+        } else if (char === '}') {
+          depth -= 1;
+          if (depth === 0) {
+            return text.slice(start, i + 1);
+          }
+        }
+      }
+      return null;
     }
 
     async function saveConfig() {
