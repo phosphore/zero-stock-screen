@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import grp
 import json
 import logging
 import os
+import pwd
 import re
 import shutil
 import subprocess
@@ -18,6 +20,25 @@ RD_UUID = "6e400004-b5a3-f393-e0a9-e50e24dcca9e"
 
 CONFIG_PATH = "/home/pi/zero-stock-screen/configuration.cfg"
 SCREEN_SERVICE = "stock-screen.service"
+CONFIG_OWNER_USER = "pi"
+CONFIG_OWNER_GROUP = "pi"
+
+
+def _resolve_owner_ids(user: str, group: Optional[str]) -> Optional[Tuple[int, int]]:
+    try:
+        uid = pwd.getpwnam(user).pw_uid
+    except KeyError:
+        return None
+
+    gid = None
+    if group:
+        try:
+            gid = grp.getgrnam(group).gr_gid
+        except KeyError:
+            gid = None
+    if gid is None:
+        gid = pwd.getpwnam(user).pw_gid
+    return uid, gid
 
 def _read_lines(path: str) -> List[str]:
     with open(path, "r", encoding="utf-8") as handle:
@@ -170,10 +191,15 @@ def _write_config(path: str, updates: Dict[str, Dict[str, object]]) -> None:
             existing_stat = os.stat(os.path.dirname(path))
         except OSError:
             existing_stat = None
-    if existing_stat is not None:
+    owner_ids = _resolve_owner_ids(CONFIG_OWNER_USER, CONFIG_OWNER_GROUP)
+    target_ids = owner_ids
+    if target_ids is None and existing_stat is not None:
+        target_ids = (existing_stat.st_uid, existing_stat.st_gid)
+    if target_ids is not None:
         try:
-            os.chown(path, existing_stat.st_uid, existing_stat.st_gid)
-            os.chmod(path, existing_stat.st_mode)
+            os.chown(path, target_ids[0], target_ids[1])
+            if existing_stat is not None:
+                os.chmod(path, existing_stat.st_mode)
         except OSError:
             pass
 
