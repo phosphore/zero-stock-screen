@@ -79,7 +79,7 @@
     <p class="hint">Web Bluetooth works on Chrome/Edge over HTTPS or localhost. Android Chrome is recommended.</p>
     <div class="row">
       <button id="connect">Connect</button>
-      <button id="refresh" class="secondary">Reload</button>
+      <button id="reload" class="secondary">Reload</button>
     </div>
   </div>
 
@@ -95,8 +95,8 @@
     <h1>Base Config</h1>
     <div class="row">
       <div>
-        <label for="refresh">Refresh interval (minutes)</label>
-        <input id="refresh" type="number" min="1" max="1440" step="1" />
+    <label for="refreshInterval">Refresh interval (minutes)</label>
+    <input id="refreshInterval" type="number" min="1" max="1440" step="1" />
       </div>
       <div>
         <label for="range">Data range (days)</label>
@@ -183,7 +183,7 @@
         const data = JSON.parse(payload);
         if (data.base) {
           if (data.base.refresh_interval_minutes !== undefined) {
-            document.getElementById('refresh').value = data.base.refresh_interval_minutes;
+            document.getElementById('refreshInterval').value = data.base.refresh_interval_minutes;
           }
           if (data.base.data_range_days !== undefined) {
             document.getElementById('range').value = data.base.data_range_days;
@@ -193,6 +193,14 @@
           }
           if (data.base.ticker) {
             document.getElementById('ticker').value = data.base.ticker;
+          }
+        }
+        if (data.wifi) {
+          if (data.wifi.ssid) {
+            document.getElementById('ssid').value = data.wifi.ssid;
+          }
+          if (data.wifi.psk) {
+            document.getElementById('psk').value = data.wifi.psk;
           }
         }
         if (data.epd2in13v3 && data.epd2in13v3.mode) {
@@ -218,7 +226,7 @@
         payload.wifi = { ssid, psk };
       }
 
-      const refresh = getValue('refresh');
+      const refresh = getValue('refreshInterval');
       const range = getValue('range');
       const baseUrl = getValue('baseUrl');
       const ticker = getValue('ticker');
@@ -250,7 +258,7 @@
       connect().catch((error) => log(`Connection error: ${error}`));
     });
 
-    document.getElementById('refresh').addEventListener('click', () => {
+    document.getElementById('reload').addEventListener('click', () => {
       loadConfig().catch((error) => log(`Read error: ${error}`));
     });
 

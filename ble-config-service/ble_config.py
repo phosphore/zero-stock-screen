@@ -114,9 +114,9 @@ def _get_value(lines: List[str], section: str, key: str) -> Optional[str]:
 
 
 def _load_config_values(path: str) -> Dict[str, Dict[str, object]]:
-    if not os.path.exists(path):
-        return {}
-    lines = _read_lines(path)
+    lines = []
+    if os.path.exists(path):
+        lines = _read_lines(path)
     result: Dict[str, Dict[str, object]] = {}
     base: Dict[str, object] = {}
     refresh = _get_value(lines, "base", "refresh_interval_minutes")
@@ -146,6 +146,9 @@ def _load_config_values(path: str) -> Dict[str, Dict[str, object]]:
         epd["mode"] = mode
     if epd:
         result["epd2in13v3"] = epd
+    wifi = _load_wifi_details()
+    if wifi:
+        result["wifi"] = wifi
     return result
 
 
@@ -280,6 +283,103 @@ def _run_command(command: List[str], *, input_text: Optional[str] = None) -> Tup
     if result.returncode != 0:
         return False, result.stderr.strip() or result.stdout.strip()
     return True, result.stdout.strip()
+
+
+def _get_active_wifi_connection() -> Tuple[Optional[str], Optional[str]]:
+    if not shutil.which("nmcli"):
+        return None, None
+    success, output = _run_command(["nmcli", "-t", "-f", "NAME,TYPE,DEVICE", "connection", "show", "--active"])
+    if not success:
+        return None, None
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        try:
+            name, connection_type, device = line.rsplit(":", 2)
+        except ValueError:
+            continue
+        if connection_type == "wifi":
+            return name, device
+    return None, None
+
+
+def _get_active_ssid() -> Optional[str]:
+    if shutil.which("nmcli"):
+        success, output = _run_command(["nmcli", "-t", "-f", "ACTIVE,SSID", "dev", "wifi"])
+        if success:
+            for line in output.splitlines():
+                if line.startswith("yes:"):
+                    ssid = line.split(":", 1)[1].strip()
+                    return ssid or None
+    if shutil.which("iwgetid"):
+        success, output = _run_command(["iwgetid", "-r"])
+        if success:
+            ssid = output.strip()
+            return ssid or None
+    return None
+
+
+def _get_active_psk(connection_name: Optional[str], ssid: Optional[str]) -> Optional[str]:
+    if connection_name and shutil.which("nmcli"):
+        success, output = _run_command(
+            ["nmcli", "-s", "-g", "802-11-wireless-security.psk", "connection", "show", connection_name]
+        )
+        if success:
+            psk = output.strip()
+            if psk:
+                return psk
+
+    if not ssid:
+        return None
+    supplicant_path = "/etc/wpa_supplicant/wpa_supplicant.conf"
+    if not os.path.exists(supplicant_path):
+        return None
+    try:
+        with open(supplicant_path, "r", encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return None
+
+    in_network = False
+    current_ssid = None
+    current_psk = None
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("network={"):
+            in_network = True
+            current_ssid = None
+            current_psk = None
+            continue
+        if in_network and stripped.startswith("}"):
+            if current_ssid == ssid and current_psk:
+                return current_psk
+            in_network = False
+            current_ssid = None
+            current_psk = None
+            continue
+        if not in_network:
+            continue
+        ssid_match = re.match(r'ssid\s*=\s*"(.+)"', stripped)
+        if ssid_match:
+            current_ssid = ssid_match.group(1)
+            continue
+        psk_match = re.match(r'#?psk\s*=\s*"(.+)"', stripped)
+        if psk_match:
+            current_psk = psk_match.group(1)
+            continue
+    return None
+
+
+def _load_wifi_details() -> Dict[str, str]:
+    connection_name, _device = _get_active_wifi_connection()
+    ssid = _get_active_ssid()
+    psk = _get_active_psk(connection_name, ssid)
+    wifi: Dict[str, str] = {}
+    if ssid:
+        wifi["ssid"] = ssid
+    if psk:
+        wifi["psk"] = psk
+    return wifi
 
 
 def _provision_wifi(ssid: str, psk: str) -> Tuple[bool, str]:
