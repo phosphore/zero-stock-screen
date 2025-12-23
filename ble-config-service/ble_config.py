@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import configparser
 import grp
+import importlib.util
 import json
 import logging
 import os
@@ -334,6 +335,10 @@ def _get_active_psk(connection_name: Optional[str], ssid: Optional[str]) -> Opti
     if nmconnection_psk:
         return nmconnection_psk
 
+    netplan_psk = _get_netplan_psk(ssid)
+    if netplan_psk:
+        return netplan_psk
+
     if not ssid:
         return None
     supplicant_path = "/etc/wpa_supplicant/wpa_supplicant.conf"
@@ -372,6 +377,74 @@ def _get_active_psk(connection_name: Optional[str], ssid: Optional[str]) -> Opti
         if psk_match:
             current_psk = psk_match.group(1)
             continue
+    return None
+
+
+def _get_netplan_psk(ssid: Optional[str]) -> Optional[str]:
+    if not ssid:
+        return None
+    config_path = "/boot/firmware/network-config"
+    if not os.path.exists(config_path):
+        return None
+    try:
+        with open(config_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+    except OSError:
+        return None
+
+    if importlib.util.find_spec("yaml"):
+        import yaml
+
+        try:
+            data = yaml.safe_load(content)
+        except (yaml.YAMLError, TypeError):
+            data = None
+        if isinstance(data, dict):
+            network = data.get("network", {})
+            wifis = network.get("wifis", {}) if isinstance(network, dict) else {}
+            if isinstance(wifis, dict):
+                for interface_config in wifis.values():
+                    if not isinstance(interface_config, dict):
+                        continue
+                    access_points = interface_config.get("access-points", {})
+                    if not isinstance(access_points, dict):
+                        continue
+                    for ap_ssid, ap_config in access_points.items():
+                        if str(ap_ssid) != ssid:
+                            continue
+                        if isinstance(ap_config, dict):
+                            password = ap_config.get("password")
+                            if password:
+                                return str(password)
+        return None
+
+    current_ssid = None
+    in_access_points = False
+    access_indent = None
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if stripped == "access-points:":
+            in_access_points = True
+            access_indent = indent
+            current_ssid = None
+            continue
+        if in_access_points:
+            if access_indent is not None and indent <= access_indent:
+                in_access_points = False
+                current_ssid = None
+                access_indent = None
+                continue
+            if stripped.endswith(":") and not stripped.startswith("password:"):
+                key = stripped[:-1].strip().strip('"').strip("'")
+                current_ssid = key
+                continue
+            if current_ssid and stripped.startswith("password:"):
+                value = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+                if current_ssid == ssid and value:
+                    return value
     return None
 
 
